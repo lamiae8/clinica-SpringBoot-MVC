@@ -1,0 +1,96 @@
+version: '3.3'
+
+services:
+  reverse-proxy:
+    image: haproxy:2.2
+    ports:
+      - "8000:80"
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.2
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+      
+  app-server-1:
+    image: myapp
+    ports:
+      - "8080:8080"
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.3
+    depends_on:
+      - mariadb
+
+  app-server-2:
+    image: myapp
+    ports:
+      - "8081:8080"
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.4
+    depends_on:
+      - mariadb
+  
+  mariadb:
+    image: mariadb:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: sdd123456
+      MYSQL_DATABASE: bd_obrasocial
+      MYSQL_USER: root
+      MYSQL_PASSWORD: sdd123456
+    ports:
+      - "3306:3306"
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.5
+
+  elasticsearch:
+    image: elasticsearch:7.16.1
+    container_name: es
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.6
+
+  logstash:
+    image: logstash:7.16.1
+    container_name: log
+    environment:
+      discovery.seed_hosts: logstash
+      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - ./logtash-nginx.config:/usr/share/logstash/pipeline/logstash-nginx.config
+    ports:
+      - "5000:5000/tcp"
+      - "5000:5000/udp"
+      - "5044:5044"
+      - "9600:9600"
+    depends_on:
+      - elasticsearch
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.7
+    command: logstash -f /usr/share/logstash/pipeline/logstash-nginx.config
+  kibana:
+    image: kibana:7.16.1
+    container_name: kib
+    ports:
+      - "9000:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      mynetwork:
+        ipv4_address: 10.5.0.8
+   
+networks:
+  mynetwork:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
